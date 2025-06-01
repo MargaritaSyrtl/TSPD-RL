@@ -159,9 +159,9 @@ class A2CAgent(object):
         env.input_data = data 
         state, avail_actions = env.reset()
         #####
-        paths_truck = [[] for _ in range(env.batch_size)]
+        start_depot = env.n_nodes - 1
+        paths_truck = [[env.n_nodes - 1] for _ in range(env.batch_size)]
         paths_drone = [[] for _ in range(env.batch_size)]
-
         #####
 
         time_vec_truck = np.zeros([env.batch_size, 2])
@@ -205,11 +205,17 @@ class A2CAgent(object):
                         if ter[b] == 0:  # did not complete the task
                             if j == 0:
                                 # remove consecutive duplicates
-                                if not paths_truck[b] or paths_truck[b][-1] != idx[b]:
+                                # if not paths_truck[b] or paths_truck[b][-1] != idx[b]:
                                     paths_truck[b].append(int(idx[b].item()))
                             else:
-                                if not paths_drone[b] or paths_drone[b][-1] != idx[b]:
-                                    paths_drone[b].append(int(idx[b].item()))
+                                target = int(idx[b])
+                                paths_drone[b].append(target)
+                                while len(paths_drone[b]) > len(paths_truck[b]) - 1:
+                                    # дрон «не взлетел», поэтому кладём дублирующий start_truck
+                                    # (равно truck_paths[b][-1])
+                                    paths_truck[b].append(paths_truck[b][-1])
+                                #if not paths_drone[b] or paths_drone[b][-1] != idx[b]:
+                                #    paths_drone[b].append(int(idx[b].item()))
                     ###
 
                     decoder_input =  torch.gather(static_hidden, 2, idx.view(-1, 1, 1).expand(env.batch_size, args['hidden_dim'], 1)).detach()
@@ -219,7 +225,9 @@ class A2CAgent(object):
                 time_step += 1
                 sols.append([idx_truck[n], idx_drone[n]])
                 costs.append(env.time_step[n])
-
+            for b in range(env.batch_size):
+                if paths_truck[b][-1] != start_depot:
+                    paths_truck[b].append(start_depot)
         R = copy.copy(env.current_time)
         costs.append(env.current_time[n])
         print("finished: ", sum(terminated))
@@ -228,6 +236,7 @@ class A2CAgent(object):
         os.makedirs("results", exist_ok=True)
         with open("results/test_paths.json", "w") as f:
             json.dump({"truck": paths_truck, "drone": paths_drone}, f)
+
         ###
 
         fname = 'test_results-{}-len-{}.txt'.format(args['test_size'], 
