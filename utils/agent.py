@@ -205,17 +205,11 @@ class A2CAgent(object):
                         if ter[b] == 0:  # did not complete the task
                             if j == 0:
                                 # remove consecutive duplicates
-                                # if not paths_truck[b] or paths_truck[b][-1] != idx[b]:
+                                if not paths_truck[b] or paths_truck[b][-1] != idx[b]:
                                     paths_truck[b].append(int(idx[b].item()))
                             else:
-                                target = int(idx[b])
-                                paths_drone[b].append(target)
-                                while len(paths_drone[b]) > len(paths_truck[b]) - 1:
-                                    # дрон «не взлетел», поэтому кладём дублирующий start_truck
-                                    # (равно truck_paths[b][-1])
-                                    paths_truck[b].append(paths_truck[b][-1])
-                                #if not paths_drone[b] or paths_drone[b][-1] != idx[b]:
-                                #    paths_drone[b].append(int(idx[b].item()))
+                                if not paths_drone[b] or paths_drone[b][-1] != idx[b]:
+                                    paths_drone[b].append(int(idx[b].item()))
                     ###
 
                     decoder_input =  torch.gather(static_hidden, 2, idx.view(-1, 1, 1).expand(env.batch_size, args['hidden_dim'], 1)).detach()
@@ -328,18 +322,3 @@ class A2CAgent(object):
 
         np.savetxt(f'results/best_rewards_list_{sample_size}_samples.txt', best_rewards_list)
         return best_rewards, times 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    

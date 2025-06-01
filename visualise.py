@@ -52,7 +52,7 @@ def visualize_instance(idx,
                                                    width:22px;height:22px;
                                                    border-radius:11px;text-align:center;
                                                    line-height:22px;font-weight:bold;">
-                                                {i}
+                                                {disp(i,depot_idx)}
                                             </div>""")).add_to(m)
 
     # truck route
@@ -62,28 +62,11 @@ def visualize_instance(idx,
                     tooltip=f"Truck").add_to(m)
 
     # drone route
-    drone_str = ""
-    # steps = len(drone_raw)
-    steps = min(len(drone_raw), len(truck_raw) - 1)
-    for t in range(steps):
-        start_truck = truck_raw[t]  # launch node
-        end_truck = truck_raw[t + 1]  # land node
-        dr_node = drone_raw[t]  # drone node
-
-        # dron hasn't launch
-        if dr_node in (start_truck, end_truck):
-            continue
-
-        folium.PolyLine(
-            [coords_real[start_truck],
-             coords_real[dr_node],
-             coords_real[end_truck]],
-            color="green", weight=3, dash_array="6 8",
-            tooltip=f"Drone {disp(start_truck,depot_idx)}→{disp(dr_node,depot_idx)}→{disp(end_truck,depot_idx)}"
-        ).add_to(m)
-        drone_str += f"{disp(start_truck,depot_idx)}→{disp(dr_node,depot_idx)}→"
-        if end_truck == depot_idx:
-            drone_str += "0"
+    drone_route = [truck_raw[0]] + drone_raw
+    folium.PolyLine([coords_real[i] for i in drone_route],
+                    color="green", weight=3, dash_array="6 8",
+                    tooltip="Drone").add_to(m)
+    drone_str = " → ".join(str(disp(n, depot_idx)) for n in drone_route)
 
     # HTML
     truck_str = " → ".join(str(disp(n, depot_idx)) for n in truck_route)
