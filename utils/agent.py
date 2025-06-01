@@ -161,6 +161,7 @@ class A2CAgent(object):
         #####
         paths_truck = [[] for _ in range(env.batch_size)]
         paths_drone = [[] for _ in range(env.batch_size)]
+
         #####
 
         time_vec_truck = np.zeros([env.batch_size, 2])
@@ -170,9 +171,7 @@ class A2CAgent(object):
         with torch.no_grad():
             data = torch.from_numpy(data[:, :, :2].astype(np.float32)).to(device)
             static_hidden = actor.emd_stat(data).permute(0, 2, 1)
-           
-            
-          
+
             # lstm initial states 
             hx = torch.zeros(1, env.batch_size, args['hidden_dim']).to(device)
             cx = torch.zeros(1, env.batch_size, args['hidden_dim']).to(device)
@@ -216,6 +215,7 @@ class A2CAgent(object):
                     decoder_input =  torch.gather(static_hidden, 2, idx.view(-1, 1, 1).expand(env.batch_size, args['hidden_dim'], 1)).detach()
                 
                 state, avail_actions, ter, time_vec_truck, time_vec_drone = env.step(idx_truck.cpu().numpy(), idx_drone.cpu().numpy(), time_vec_truck, time_vec_drone, ter)
+
                 time_step += 1
                 sols.append([idx_truck[n], idx_drone[n]])
                 costs.append(env.time_step[n])
