@@ -5,6 +5,7 @@ import collections
 import copy
 import time 
 import math
+from DMRequest_osrm import DMRequest
 
 
 def haversine_distance(coord1, coord2):
@@ -116,21 +117,19 @@ class Env(object):
         self.v_d = args['v_d']
         self.batch_size = args['batch_size']
        
-       
     def reset(self):
         self.batch_size = self.input_data[:, :, :2].shape[0]
         self.input_pnt = self.input_data[:, :, :2]
         self.dist_mat = np.zeros([self.batch_size, self.n_nodes, self.n_nodes])
-        #for i in range(self.n_nodes):
-        #    for j in range(i+1, self.n_nodes):
-        #        self.dist_mat[:, i, j] = ((self.input_pnt[:, i, 0] - self.input_pnt[:, j, 0])**2 + (self.input_pnt[:, i, 1] - self.input_pnt[:, j, 1])**2)**0.5
-        #        self.dist_mat[:, j, i] =  self.dist_mat[:, i, j]
         for b in range(self.batch_size):
+            places = [tuple(coord) for coord in self.input_pnt[b]]
+            dm = DMRequest(places)
+            dm_data = dm.get_response_data_osrm()
+
             for i in range(self.n_nodes):
                 for j in range(i + 1, self.n_nodes):
-                    coord_i = self.input_pnt[b, i]
-                    coord_j = self.input_pnt[b, j]
-                    dist = haversine_distance(coord_i, coord_j)
+                    key = frozenset([places[i], places[j]])
+                    dist = dm_data['waypoints_distances'].get(key, 0.0)
                     self.dist_mat[b, i, j] = dist
                     self.dist_mat[b, j, i] = dist
 
