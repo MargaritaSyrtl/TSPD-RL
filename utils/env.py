@@ -4,6 +4,28 @@ import warnings
 import collections
 import copy
 import time 
+import math
+
+
+def haversine_distance(coord1, coord2):
+    """
+    Calculates great-circle distance between two (lat, lon) points in meters.
+    """
+    lat1, lon1 = map(float, coord1)
+    lat2, lon2 = map(float, coord2)
+
+    R = 6371000  # Radius of Earth in meters
+    deg_to_rad = math.pi / 180
+
+    dlat = (lat2 - lat1) * deg_to_rad
+    dlon = (lon2 - lon1) * deg_to_rad
+    lat1_rad = lat1 * deg_to_rad
+    lat2_rad = lat2 * deg_to_rad
+
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
 
 def create_test_dataset(
                     args):
@@ -99,11 +121,19 @@ class Env(object):
         self.batch_size = self.input_data[:, :, :2].shape[0]
         self.input_pnt = self.input_data[:, :, :2]
         self.dist_mat = np.zeros([self.batch_size, self.n_nodes, self.n_nodes])
-        for i in range(self.n_nodes):
-            for j in range(i+1, self.n_nodes):
-                self.dist_mat[:, i, j] = ((self.input_pnt[:, i, 0] - self.input_pnt[:, j, 0])**2 + (self.input_pnt[:, i, 1] - self.input_pnt[:, j, 1])**2)**0.5
-                self.dist_mat[:, j, i] =  self.dist_mat[:, i, j]
-      
+        #for i in range(self.n_nodes):
+        #    for j in range(i+1, self.n_nodes):
+        #        self.dist_mat[:, i, j] = ((self.input_pnt[:, i, 0] - self.input_pnt[:, j, 0])**2 + (self.input_pnt[:, i, 1] - self.input_pnt[:, j, 1])**2)**0.5
+        #        self.dist_mat[:, j, i] =  self.dist_mat[:, i, j]
+        for b in range(self.batch_size):
+            for i in range(self.n_nodes):
+                for j in range(i + 1, self.n_nodes):
+                    coord_i = self.input_pnt[b, i]
+                    coord_j = self.input_pnt[b, j]
+                    dist = haversine_distance(coord_i, coord_j)
+                    self.dist_mat[b, i, j] = dist
+                    self.dist_mat[b, j, i] = dist
+
         self.drone_mat = self.dist_mat/self.v_d
         avail_actions = np.ones([self.batch_size, self.n_nodes, 2], dtype=np.float32)
         avail_actions[:, self.n_nodes-1, :] = np.zeros([self.batch_size, 2])

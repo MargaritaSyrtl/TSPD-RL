@@ -2,10 +2,11 @@ import json, folium, numpy as np
 from folium.features import DivIcon
 from itertools import groupby
 from branca.element import Template, MacroElement
+import datetime as dt
 
-
-def _denorm(val_norm, vmin, vmax):
-    return val_norm * (vmax - vmin) + vmin
+for i, h in enumerate(np.loadtxt('results/test_results-100-len-10.txt')):
+    td = dt.timedelta(hours=float(h))
+    print(f'#{i:02d}: {td}')
 
 
 def disp(i, depot_idx):
@@ -18,31 +19,28 @@ def disp(i, depot_idx):
 def visualize_instance(idx,
                        paths_file="results/test_paths.json",
                        data_file="data/DroneTruck-size-100-len-10.txt",
-                       minmax_file="data/DroneTruck-size-100-len-10_minmax.txt",
-                       trim_repeat=True,
                        html_out="route_map.html"):
 
+    # Load paths (truck + drone)
     with open(paths_file) as f:
         paths = json.load(f)
-    truck_raw = paths["truck"][idx]  # with depo
+    truck_raw = paths["truck"][idx]
     drone_raw = paths["drone"][idx]
     print(f"truck: {truck_raw}")
     print(f"drone: {drone_raw}")
 
+    # Load real coordinates from .txt
     with open(data_file) as f:
         line = f.readlines()[idx].split()
-    coords_norm = np.array(line, dtype=float).reshape(-1, 3)[:, :2]
-
-    with open(minmax_file) as f:
-        lat_min, lon_min, lat_max, lon_max = map(float, f.readlines()[idx].split())
-
-    coords_real = [(_denorm(lat, lat_min, lat_max),
-                    _denorm(lon, lon_min, lon_max)) for lat, lon in coords_norm]
+    coords_real = np.array(line, dtype=float).reshape(-1, 3)[:, :2]  # use lat/lon directly
 
     depot_idx = len(coords_real) - 1
     depot_coord = coords_real[depot_idx]
 
-    m = folium.Map(location=depot_coord, zoom_start=14)
+    # Initialize map
+    m = folium.Map(location=depot_coord.tolist(), zoom_start=14)
+
+    # Plot points
     for i, (lat, lon) in enumerate(coords_real):
         folium.Marker([lat, lon],
                       tooltip=f"node {i}",
@@ -55,21 +53,21 @@ def visualize_instance(idx,
                                                 {disp(i,depot_idx)}
                                             </div>""")).add_to(m)
 
-    # truck route
+    # Truck route
     truck_route = [k for k, _ in groupby(truck_raw)]
     folium.PolyLine([coords_real[i] for i in truck_route],
                     color="blue", weight=4,
-                    tooltip=f"Truck").add_to(m)
+                    tooltip="Truck").add_to(m)
 
-    # drone route
+    # Drone route
     drone_route = [truck_raw[0]] + drone_raw
     folium.PolyLine([coords_real[i] for i in drone_route],
                     color="green", weight=3, dash_array="6 8",
                     tooltip="Drone").add_to(m)
-    drone_str = " → ".join(str(disp(n, depot_idx)) for n in drone_route)
 
-    # HTML
+    # Add legend
     truck_str = " → ".join(str(disp(n, depot_idx)) for n in truck_route)
+    drone_str = " → ".join(str(disp(n, depot_idx)) for n in drone_route)
     legend_html = f"""
             <div style="
                  position: fixed;
