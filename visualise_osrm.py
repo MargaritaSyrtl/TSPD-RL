@@ -3,6 +3,7 @@ from folium.features import DivIcon
 from itertools import groupby
 from branca.element import Template, MacroElement
 import datetime as dt
+from utils import DMRequest_osrm
 
 for i, h in enumerate(np.loadtxt('results/test_results-100-len-10.txt')):
     td = dt.timedelta(hours=float(h))
@@ -37,6 +38,8 @@ def visualize_instance(idx,
     depot_idx = len(coords_real) - 1
     depot_coord = coords_real[depot_idx]
 
+    dm = DMRequest_osrm.DMRequest(coords_real)
+
     # Initialize map
     m = folium.Map(location=depot_coord.tolist(), zoom_start=14)
 
@@ -55,9 +58,12 @@ def visualize_instance(idx,
 
     # Truck route
     truck_route = [k for k, _ in groupby(truck_raw)]
-    folium.PolyLine([coords_real[i] for i in truck_route],
-                    color="blue", weight=4,
-                    tooltip="Truck").add_to(m)
+    for a, b in zip(truck_route[:-1], truck_route[1:]):
+        geom = dm.get_geometry_for_route(coords_real[a], coords_real[b])
+        if geom:
+            folium.PolyLine(geom, color="blue", weight=4, tooltip=f"Truck {a}->{b}").add_to(m)
+        else:
+            folium.PolyLine([coords_real[a], coords_real[b]], color="blue", weight=4, dash_array="4 8").add_to(m)
 
     # Drone route
     drone_route = [truck_raw[0]] + drone_raw

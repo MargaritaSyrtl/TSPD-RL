@@ -3,7 +3,7 @@ import os
 import torch 
 import random
 from utils.options import ParseParams
-from utils.env_no_comb import Env, DataGenerator
+from utils.env import Env, DataGenerator
 from model.nnets import Actor, Critic 
 from utils.agent import A2CAgent
 import time
@@ -24,6 +24,11 @@ if __name__ == '__main__':
     data = dataGen.get_train_next()
     data = dataGen.get_test_all()
     env = Env(args, data)
+
+    dynamic1, avail_actions1 = env.reset()
+    print("Matrix dist:")
+    print(env.dist_mat[0])
+
     actor = Actor(args['hidden_dim'])
     critic = Critic(args['hidden_dim'])
     if not os.path.exists(save_path):
