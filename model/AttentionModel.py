@@ -13,10 +13,10 @@ device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cp
 class AttentionModel(nn.Module):
 
     def __init__(self,
-                 embedding_dim,
-                 hidden_dim,
-                 n_encode_layers=3,
-                 tanh_clipping=10.,
+                 embedding_dim,  # embedding dimension
+                 hidden_dim,  # hidden state dimension
+                 n_encode_layers=3,  # number of attention layers in the encoder
+                 tanh_clipping=10.,  # limiting logit values
                  mask_inner=True,
                  mask_logits=True,
                  normalization='batch',
@@ -30,22 +30,19 @@ class AttentionModel(nn.Module):
         self.n_encode_layers = n_encode_layers
         self.decode_type = "sampling"
         self.temp = 1.0
-       
 
         self.tanh_clipping = tanh_clipping
 
         self.mask_inner = mask_inner
         self.mask_logits = mask_logits
 
- 
         self.n_heads = n_heads
         self.checkpoint_encoder = checkpoint_encoder
         self.shrink_size = shrink_size
 
-        
         node_dim = 2  # x, y
-            
- 
+        # input nodes have coordinates (x, y), dimension 2
+
         self.init_embed = nn.Linear(node_dim, embedding_dim).to(device)
 
         self.embedder = GraphAttentionEncoder(

@@ -14,8 +14,8 @@ device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cp
 class A2CAgent(object):
     
     def __init__(self, actor, critic, args, env, dataGen):
-        self.actor = actor
-        self.critic = critic 
+        self.actor = actor  # policy model issuing routes
+        self.critic = critic  # model that predicts route cost
         self.args = args 
         self.env = env 
         self.dataGen = dataGen 
@@ -44,10 +44,13 @@ class A2CAgent(object):
         s_t = time.time()
         print("training started")
         for i in range(max_epochs):
-            
+            # new data batch is generated
+
             data = dataGen.get_train_next()
-            env.input_data = data 
-            state, avail_actions = env.reset()
+            env.input_data = data  # Loads input data (client coordinates)
+            # init state: where the truck/drone is and avail_actions: what nodes are available
+            state, avail_actions = env.reset()  # route simulation from scratch
+
             data = torch.from_numpy(data[:, :, :2].astype(np.float32)).to(device)
             # [b_s, hidden_dim, n_nodes]
             static_hidden = actor.emd_stat(data).permute(0, 2, 1)
@@ -70,7 +73,7 @@ class A2CAgent(object):
             time_vec_drone = np.zeros([env.batch_size, 3])
             
             # storage containers 
-            logs = []
+            logs = []  # logarithms of probabilities
             actions = []
             probs = []
             time_step = 0
@@ -82,10 +85,13 @@ class A2CAgent(object):
                     if j == 0:
                         avail_actions_truck = torch.from_numpy(avail_actions[:, :, 0].reshape([env.batch_size, env.n_nodes]).astype(np.float32)).to(device)
                         dynamic_truck = torch.from_numpy(np.expand_dims(state[:, :, 0], 2)).to(device)
+                        # selects the next node given the mask and LSTM
                         idx_truck, prob, logp, last_hh = actor.forward(static_hidden, dynamic_truck, decoder_input, last_hh, 
                                                                      terminated, avail_actions_truck)
+                        # idx_truck-selected node, probability, log probability, new LSTM state
                         b_s = np.where(np.logical_and(avail_actions[:, :, 1].sum(axis=1)>1, env.sortie==0))[0]
                         avail_actions[b_s, idx_truck[b_s].cpu(), 1] = 0
+                        # actions-list of indexes of selected nodes
                         avail_actions_drone = torch.from_numpy(avail_actions[:, :, 1].reshape([env.batch_size, env.n_nodes]).astype(np.float32)).to(device)
                         idx = idx_truck 
                     else:
@@ -98,10 +104,10 @@ class A2CAgent(object):
                     logs.append(logp.unsqueeze(1))
                     actions.append(idx.unsqueeze(1))
                     probs.append(prob.unsqueeze(1))
-               
+
+                # calculates the new state for the truck and drone - (route)
                 state, avail_actions, ter, time_vec_truck, time_vec_drone = env.step(idx_truck.cpu().numpy(), idx_drone.cpu().numpy(), time_vec_truck, time_vec_drone, ter)
-                
-             
+                # time_vec_ : remaining travel times
                 time_step += 1
          
             print("epochs: ", i)
@@ -109,11 +115,11 @@ class A2CAgent(object):
             logs = torch.cat(logs, dim=1)  # (batch_size, seq_len)
             # Query the critic for an estimate of the reward
             critic_est = critic(static, w).view(-1)
-            R = env.current_time.astype(np.float32) 
+            R = env.current_time.astype(np.float32)   # reward
             R = torch.from_numpy(R).to(device)
-            advantage = (R - critic_est)
-            actor_loss = torch.mean(advantage.detach() * logs.sum(dim=1))
-            critic_loss = torch.mean(advantage ** 2)
+            advantage = (R - critic_est)  # how much was the actor better/worse than expected
+            actor_loss = torch.mean(advantage.detach() * logs.sum(dim=1))  # improves policy if the advantage is positive
+            critic_loss = torch.mean(advantage ** 2)  # learns to predict the reward
 
             actor_optim.zero_grad()
             actor_loss.backward()
@@ -128,12 +134,13 @@ class A2CAgent(object):
             e_t = time.time() - s_t
             print("e_t: ", e_t)
             if i % args['test_interval'] == 0:
-        
+                # testing the model for validation
                 R = self.test()
                 r_test.append(R)
                 np.savetxt("trained_models/test_rewards.txt", r_test)
             
                 print("testing average rewards: ", R)
+                # if the result has improved, the best checkpoint is saved
                 if R < best_model:
                  #   R_val = self.test(inference=False, val=False)
                     best_model = R
@@ -147,6 +154,7 @@ class A2CAgent(object):
                 torch.save(critic.state_dict(), 'trained_models/' + '/' + num + '_critic_params.pkl')
 
     def test(self):
+        """Runs the agent on all test data"""
         args = self.args 
         env = self.env 
         dataGen = self.dataGen
@@ -188,6 +196,7 @@ class A2CAgent(object):
                     if j == 0:
                         avail_actions_truck = torch.from_numpy(avail_actions[:, :, 0].reshape([env.batch_size, env.n_nodes]).astype(np.float32)).to(device)
                         dynamic_truck = torch.from_numpy(np.expand_dims(state[:, :, 0], 2)).to(device)
+                        # to select actions at each step
                         idx_truck, prob, logp, last_hh = actor.forward(static_hidden, dynamic_truck, decoder_input, last_hh, 
                                                                      terminated, avail_actions_truck)
                         b_s = np.where(np.logical_and(avail_actions[:, :, 1].sum(axis=1)>1, env.sortie==0))[0]
@@ -237,15 +246,14 @@ class A2CAgent(object):
                                                                args['n_nodes'])
         fname = 'results/' + fname
         np.savetxt(fname, R)
-
-
-            
         actor.train()
         return R.mean()
-    
-    
 
     def sampling_batch(self, sample_size):
+        """Improves the output quality.
+        Repeats the same data sample_size times -> different routes every time.
+        The best route is selected based on the reward
+        """
         val_size = self.dataGen.get_test_all().shape[0]
         best_rewards = np.ones(sample_size)*100000
         best_sols = np.zeros([sample_size, self.args['decode_len'], 2])
@@ -274,7 +282,7 @@ class A2CAgent(object):
             with torch.no_grad():
                 data = torch.from_numpy(data[:, :, :2].astype(np.float32)).to(device)
                 # [b_s, hidden_dim, n_nodes]
-                static_hidden = actor.emd_stat(data).permute(0, 2, 1)
+                static_hidden = actor.emd_stat(data).permute(0, 2, 1)  # node embeddings from encoder
             
                 # lstm initial states 
                 hx = torch.zeros(1, sample_size, args['hidden_dim']).to(device)
@@ -283,13 +291,14 @@ class A2CAgent(object):
         
                 # prepare input 
                 ter = np.zeros(sample_size).astype(np.float32)
-                decoder_input = static_hidden[:, :, env.n_nodes-1].unsqueeze(2)
+                decoder_input = static_hidden[:, :, env.n_nodes-1].unsqueeze(2)  # last visited node embedding
                 time_step = 0
                 while time_step < args['decode_len']:
                     terminated = torch.from_numpy(ter).to(device)
                     for j in range(2):
                         # truck takes action 
                         if j == 0:
+                            # mask of available nodes
                             avail_actions_truck = torch.from_numpy(avail_actions[:, :, 0].reshape([sample_size, env.n_nodes]).astype(np.float32)).to(device)
                             dynamic_truck = torch.from_numpy(np.expand_dims(state[:, :, 0], 2)).to(device)
                             idx_truck, prob, logp, last_hh = actor.forward(static_hidden, dynamic_truck, decoder_input, last_hh, 
@@ -309,8 +318,6 @@ class A2CAgent(object):
                 
                     state, avail_actions, ter, time_vec_truck, time_vec_drone = env.step(idx_truck.cpu().numpy(), idx_drone.cpu().numpy(), time_vec_truck, time_vec_drone, ter)
                     time_step += 1
-
-
 
             R = copy.copy(env.current_time)
             print('R.shape:', R.shape)

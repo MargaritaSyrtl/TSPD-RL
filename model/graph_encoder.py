@@ -12,6 +12,7 @@ class SkipConnection(nn.Module):
         self.module = module
 
     def forward(self, input):
+        # output = x + f(x)
         return input + self.module(input)
 
 
@@ -78,20 +79,21 @@ class MultiHeadAttention(nn.Module):
         shp = (self.n_heads, batch_size, graph_size, -1)
         shp_q = (self.n_heads, batch_size, n_query, -1)
 
-        # Calculate queries, (n_heads, n_query, graph_size, key/val_size)
+        # Calculate queries (n_heads, n_query, graph_size, key/val_size) from input vectors
         Q = torch.matmul(qflat, self.W_query).view(shp_q)
-        # Calculate keys and values (n_heads, batch_size, graph_size, key/val_size)
+        # Calculate keys (n_heads, batch_size, graph_size, key/val_size)
         K = torch.matmul(hflat, self.W_key).view(shp)
+        # Calculate values (n_heads, batch_size, graph_size, key/val_size)
         V = torch.matmul(hflat, self.W_val).view(shp)
 
-        # Calculate compatibility (n_heads, batch_size, n_query, graph_size)
+        # Calculate compatibility (n_heads, batch_size, n_query, graph_size) between query and key
         compatibility = self.norm_factor * torch.matmul(Q, K.transpose(2, 3))
 
         # Optionally apply mask to prevent attention
         if mask is not None:
             mask = mask.view(1, batch_size, n_query, graph_size).expand_as(compatibility)
             compatibility[mask] = -np.inf
-
+        # softmax = probability distribution
         attn = torch.softmax(compatibility, dim=-1)
 
         # If there are nodes with no neighbours then softmax returns nan so we fix them to 0
@@ -100,6 +102,7 @@ class MultiHeadAttention(nn.Module):
             attnc[mask] = 0
             attn = attnc
 
+        # attention to values
         heads = torch.matmul(attn, V)
 
         out = torch.mm(
@@ -153,6 +156,7 @@ class MultiHeadAttentionLayer(nn.Sequential):
             feed_forward_hidden=512,
             normalization='batch',
     ):
+        # (x → attention → skip) → norm → (→ FFN → skip) → norm
         super(MultiHeadAttentionLayer, self).__init__(
             SkipConnection(
                 MultiHeadAttention(

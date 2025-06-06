@@ -9,17 +9,18 @@ def ParseParams():
 
     # Data generation for Training and Testing 
     parser.add_argument('--n_nodes', default=10, type=int, help="Number of nodes")
-    parser.add_argument('--v_t', default = 0.1, type=int, help="Speed of truck in m/s")
-    parser.add_argument('--v_d', default = 0.2, type=int, help="Speed of drone in m/s")
-    parser.add_argument('--max_w', default = 2.5, type=float, help="Max weight a drone can carry")
-    parser.add_argument('--batch_size', default= 100,type=int, help='Batch size for training')
-    parser.add_argument('--n_train', default=100,type=int, help='# of episodes for training')
-    parser.add_argument('--test_size', default= 100,type=int, help='# of instances for testing')
+    parser.add_argument('--v_t', default=0.1, type=int, help="Speed of truck in m/s")
+    parser.add_argument('--v_d', default=0.2, type=int, help="Speed of drone in m/s")
+    parser.add_argument('--max_w', default=2.5, type=float, help="Max weight a drone can carry")
+    parser.add_argument('--batch_size', default=100, type=int, help='Batch size for training')  # how many examples the model processes simultaneously in one TRAINING iteration
+    parser.add_argument('--n_train', default=1000, type=int, help='# of episodes for training')  # how many times the agent goes through the full route simulation DURING TRAINING
+    # total number of graphs: batch_size * n_train
+    parser.add_argument('--test_size', default=100, type=int, help='# of instances for testing')  # how many different test cases are used to check the quality of the model AFTER training
     parser.add_argument('--data_dir', type=str, default='data')
     parser.add_argument('--save_path', type=str, default='trained_models/')
-    parser.add_argument('--test_interval', default=200,type=int, help='test every test_interval steps')
-    parser.add_argument('--save_interval', default=1000,type=int, help='save every save_interval steps')
-    parser.add_argument('--log_dir', default='logs',type=str, help='folder for saving prints')
+    parser.add_argument('--test_interval', default=200, type=int, help='test every test_interval steps')
+    parser.add_argument('--save_interval', default=1000, type=int, help='save every save_interval steps')
+    parser.add_argument('--log_dir', default='logs', type=str, help='folder for saving prints')
     parser.add_argument('--stdout_print', default=True, type=str2bool, help='print control')
     # Neural Network Structure 
     
